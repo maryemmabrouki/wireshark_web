@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SharkWeb - Analyseur de paquets réseau moderne inspiré de Wireshark, développé en Python avec Scapy et Flask. Capture en direct, dissection de couches et mode démonstration.">
+    <title>SharkWeb — Analyseur de Paquets Réseau (Wireshark Web)</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 1. En-tête / Barre de navigation principale -->
+        <header class="app-header">
+            <div class="header-brand">
+                <div class="brand-logo">
+                    <svg viewBox="0 0 24 24" class="logo-icon" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="brand-title">SharkWeb</h1>
+                    <span class="brand-subtitle">Analyseur de paquets réseau inspiré de Wireshark (Scapy + Flask)</span>
+                </div>
+            </div>
+
+            <div class="header-status">
+                <div id="status-pill" class="status-pill status-stopped">
+                    <span class="status-dot"></span>
+                    <span id="status-text">Arrêté</span>
+                </div>
+                <div id="active-mode-badge" class="badge-source badge-source-pcap" title="Origine actuelle du trafic analysé">
+                    📁 Source : Fichier PCAP
+                </div>
+                <div class="header-metrics">
+                    <div class="metric-item">
+                        <span class="metric-label">Paquets</span>
+                        <span id="metric-total-pkts" class="metric-value">0</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Débit</span>
+                        <span id="metric-pkt-rate" class="metric-value">0 pkts/s</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <button id="btn-stats-modal" class="btn btn-secondary" title="Voir les statistiques de trafic">
+                    <svg viewBox="0 0 24 24" class="btn-icon"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+                    Statistiques
+                </button>
+                <button id="btn-load-sample" class="btn btn-secondary" title="Charger la capture PCAP de démonstration">
+                    <svg viewBox="0 0 24 24" class="btn-icon"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                    PCAP Démo
+                </button>
+                <button id="btn-upload-trigger" class="btn btn-secondary" title="Importer un fichier PCAP externe">
+                    <svg viewBox="0 0 24 24" class="btn-icon"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>
+                    Importer PCAP
+                </button>
+                <input type="file" id="input-pcap-file" accept=".pcap,.pcapng,.cap" style="display: none;">
+                <a id="btn-export-pcap" href="/api/export_pcap" class="btn btn-secondary" title="Télécharger la capture au format .pcap">
+                    <svg viewBox="0 0 24 24" class="btn-icon"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                    Exporter PCAP
+                </a>
+            </div>
+        </header>
+
+        <!-- 2. Barre d'outils de Capture -->
+        <section class="toolbar-section">
+            <div class="toolbar-left">
+                <button id="btn-start" class="btn btn-success" title="Démarrer la capture réseau sur l'interface sélectionnée">
+                    <svg viewBox="0 0 24 24" class="btn-icon"><path d="M8 5v14l11-7z"/></svg>
+                    Démarrer
+                </button>
+                <button id="btn-stop" class="btn btn-danger" disabled title="Arrêter la capture réseau">
+                    <svg viewBox="0 0 24 24" class="btn-icon"><path d="M6 6h12v12H6z"/></svg>
+                    Arrêter
+                </button>
+                <button id="btn-clear" class="btn btn-outline" title="Effacer tous les paquets du tampon">
+                    <svg viewBox="0 0 24 24" class="btn-icon"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    Vider
+                </button>
+
+                <div class="interface-selector-group">
+                    <label for="select-interface" class="interface-label">Interface :</label>
+                    <select id="select-interface" class="select-input" title="Sélectionner une carte réseau ou le mode démo">
+                        <option value="DEMO_MODE">🧪 Simulateur / Mode Démo (Trafic Virtuel)</option>
+                        <option value="LOADING" disabled>Détection des interfaces en cours...</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="toolbar-right">
+                <button id="btn-test-indutwin" class="btn btn-secondary" title="Émettre un paquet de test local autorisé (UDP Multicast 224.1.1.1:5555 ou 127.0.0.1) pour valider la capture passive">
+                    <svg viewBox="0 0 24 24" class="btn-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14h2v2h-2v-2zm0-10h2v8h-2V6z"/></svg>
+                    Test InduTwin (5555)
+                </button>
+                <button id="btn-generate-demo" class="btn btn-accent" title="Injecter un lot de paquets variés en mode démo">
+                    <svg viewBox="0 0 24 24" class="btn-icon"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                    +15 Paquets Démo
+                </button>
+
+                <div class="autoscroll-toggle">
+                    <label class="switch-container">
+                        <input type="checkbox" id="check-autoscroll" checked>
+                        <span class="switch-slider"></span>
+                    </label>
+                    <span class="switch-label">Défilement auto</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bannière d'erreur / notification dynamique -->
+        <div id="error-banner" class="alert-banner" style="display: none;">
+            <span class="alert-icon">⚠️</span>
+            <span id="error-banner-text" class="alert-text">Erreur de capture</span>
+            <button id="btn-close-error" class="alert-close" title="Fermer">✕</button>
+        </div>
+
+        <!-- 3. Barre de Filtres de Paquets (Style Wireshark Display Filter) -->
+        <section class="filter-section">
+            <div class="filter-bar">
+                <div class="filter-icon">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
+                </div>
+                <input type="text" id="input-filter" class="filter-input" placeholder="Filtrer par protocole, IP ou texte (ex: dns, tcp, udp, 192.168.1.37, 5555, ping)...">
+                <button id="btn-apply-filter" class="btn btn-primary btn-sm">Appliquer</button>
+                <button id="btn-reset-filter" class="btn btn-ghost btn-sm" title="Réinitialiser les filtres">✕</button>
+            </div>
+
+            <!-- Chips de filtres rapides -->
+            <div class="filter-chips">
+                <span class="chips-label">Filtres rapides :</span>
+                <button class="chip active" data-proto="all">Tous</button>
+                <button class="chip" data-proto="dns">DNS</button>
+                <button class="chip" data-proto="http">HTTP</button>
+                <button class="chip" data-proto="tls">TLS</button>
+                <button class="chip" data-proto="tcp">TCP</button>
+                <button class="chip" data-proto="udp">UDP</button>
+                <button class="chip" data-proto="icmp">ICMP (Ping)</button>
+                <button class="chip" data-proto="arp">ARP</button>
+            </div>
+        </section>
+
+        <!-- 4. Contenu Principal : Disposition Master-Detail -->
+        <main class="main-content">
+            <!-- PANE 1 : Tableau des Paquets Capturés -->
+            <section class="packet-list-pane">
+                <div class="table-container" id="packet-table-wrapper">
+                    <table class="packet-table" id="packet-table">
+                        <thead>
+                            <tr>
+                                <th class="col-no">No.</th>
+                                <th class="col-src-mode">Origine</th>
+                                <th class="col-time">Temps (s)</th>
+                                <th class="col-src">Source</th>
+                                <th class="col-dst">Destination</th>
+                                <th class="col-proto">Protocole</th>
+                                <th class="col-len">Taille</th>
+                                <th class="col-info">Informations</th>
+                            </tr>
+                        </thead>
+                        <tbody id="packet-tbody">
+                            <tr class="empty-row">
+                                <td colspan="8">
+                                    <div class="empty-state">
+                                        <div class="spinner"></div>
+                                        <p>Chargement des paquets...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- PANE 2 : Double Volet de Détails (Arborescence + Hex Dump) -->
+            <section class="packet-details-pane" id="details-section">
+                <!-- Sous-volet gauche : Dissection des couches -->
+                <div class="detail-subpane" id="subpane-layers">
+                    <div class="subpane-header">
+                        <div class="subpane-title-group">
+                            <svg viewBox="0 0 24 24" class="subpane-icon"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+                            <h2 class="subpane-title">Dissection des Couches Réseau</h2>
+                            <span id="detail-packet-badge" class="detail-badge">Sélectionnez un paquet</span>
+                        </div>
+                        <a id="btn-full-page-detail" href="#" target="_blank" class="btn btn-ghost btn-sm" style="display: none;">
+                            Ouvrir pleine page ↗
+                        </a>
+                    </div>
+                    
+                    <div class="subpane-content" id="layer-tree-container">
+                        <div class="unselected-message">
+                            <svg viewBox="0 0 24 24" class="placeholder-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                            <p>Cliquez sur une ligne du tableau ci-dessus pour inspecter les couches (Ethernet, IP, TCP/UDP, DNS, etc.).</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sous-volet droit : Hex Dump & ASCII -->
+                <div class="detail-subpane" id="subpane-hexdump">
+                    <div class="subpane-header">
+                        <div class="subpane-title-group">
+                            <svg viewBox="0 0 24 24" class="subpane-icon"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+                            <h2 class="subpane-title">Dump Hexadécimal & ASCII</h2>
+                            <span id="hexdump-len-badge" class="detail-badge">0 octets</span>
+                        </div>
+                        <button id="btn-copy-hex" class="btn btn-ghost btn-sm" title="Copier les octets hexadécimaux bruts" style="display: none;">
+                            Copier Hex
+                        </button>
+                    </div>
+
+                    <div class="subpane-content hex-viewer" id="hexdump-container">
+                        <div class="unselected-message">
+                            <p>Les octets bruts s'afficheront ici en hexadécimal et ASCII.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 5. Barre d'état inférieure (Footer) -->
+        <footer class="app-footer">
+            <div class="footer-left">
+                <span id="footer-packet-count">0 paquet(s) affiché(s) sur 0</span>
+                <span class="footer-divider">•</span>
+                <span id="footer-interface">Interface : Aucune</span>
+            </div>
+            <div class="footer-center">
+                <span id="footer-status-msg">SharkWeb prêt</span>
+            </div>
+            <div class="footer-right">
+                <span class="badge-tech">Scapy 2.8</span>
+                <span class="badge-tech">Flask 3.1</span>
+                <span class="badge-tech">Python 3.11</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Modale de Statistiques Réseau -->
+    <div id="stats-modal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title">Statistiques du Trafic Réseau</h3>
+                <button class="modal-close" id="btn-close-stats">✕</button>
+            </div>
+            <div class="modal-body" id="stats-modal-body">
+                <div class="stats-summary-grid">
+                    <div class="stat-box">
+                        <span class="stat-num" id="stat-total-pkts">0</span>
+                        <span class="stat-text">Total Paquets</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-num" id="stat-total-bytes">0 B</span>
+                        <span class="stat-text">Volume de Données</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-num" id="stat-duration">0 s</span>
+                        <span class="stat-text">Durée de Capture</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-num" id="stat-rate">0</span>
+                        <span class="stat-text">Paquets / Seconde</span>
+                    </div>
+                </div>
+
+                <div class="stats-section">
+                    <h4 class="stats-heading">Répartition par Protocole</h4>
+                    <div id="stats-protocols-bars" class="stats-bars-container">
+                        <!-- Rempli dynamiquement -->
+                    </div>
+                </div>
+
+                <div class="stats-section">
+                    <h4 class="stats-heading">Adresses IP les Plus Actives (Top Talkers)</h4>
+                    <div id="stats-top-ips" class="top-ips-list">
+                        <!-- Rempli dynamiquement -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script JavaScript Principal -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

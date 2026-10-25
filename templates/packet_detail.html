@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SharkWeb - Dissection détaillée et analyse approfondie du paquet réseau #{{ packet.id }}.">
+    <title>SharkWeb — Détails du Paquet #{{ packet.id }} ({{ packet.protocol }})</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="page-detail-body">
+    <div class="detail-page-container">
+        <!-- Barre de navigation supérieure -->
+        <header class="detail-page-header">
+            <div class="nav-breadcrumbs">
+                <a href="/" class="btn btn-secondary btn-sm">
+                    <svg viewBox="0 0 24 24" class="btn-icon"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                    Retour à la Capture
+                </a>
+                <span class="breadcrumb-separator">/</span>
+                <span class="breadcrumb-current">Analyse détaillée du Paquet #{{ packet.id }}</span>
+            </div>
+
+            <div class="packet-pagination">
+                {% if prev_id %}
+                    <a href="/packet/{{ prev_id }}" class="btn btn-secondary btn-sm" title="Paquet précédent">
+                        ← Paquet #{{ prev_id }}
+                    </a>
+                {% else %}
+                    <button class="btn btn-secondary btn-sm" disabled>← Début</button>
+                {% endif %}
+
+                <span class="pagination-info">Paquet {{ packet.id }} / {{ total_packets }}</span>
+
+                {% if next_id %}
+                    <a href="/packet/{{ next_id }}" class="btn btn-secondary btn-sm" title="Paquet suivant">
+                        Paquet #{{ next_id }} →
+                    </a>
+                {% else %}
+                    <button class="btn btn-secondary btn-sm" disabled>Fin →</button>
+                {% endif %}
+            </div>
+        </header>
+
+        <!-- Carte Résumé / Hero Card -->
+        <section class="packet-hero-card">
+            <div class="hero-top">
+                <div class="hero-id-badge">
+                    <span class="hero-label">PAQUET</span>
+                    <span class="hero-number">#{{ packet.id }}</span>
+                </div>
+                <div class="hero-protocol">
+                    <span class="badge {{ packet.badge_class }}">{{ packet.protocol }}</span>
+                </div>
+                <div class="hero-endpoints">
+                    <div class="endpoint">
+                        <span class="endpoint-label">SOURCE</span>
+                        <span class="endpoint-val">{{ packet.src }}{% if packet.src_port %}:{{ packet.src_port }}{% endif %}</span>
+                    </div>
+                    <div class="endpoint-arrow">➔</div>
+                    <div class="endpoint">
+                        <span class="endpoint-label">DESTINATION</span>
+                        <span class="endpoint-val">{{ packet.dst }}{% if packet.dst_port %}:{{ packet.dst_port }}{% endif %}</span>
+                    </div>
+                </div>
+                <div class="hero-meta">
+                    <div class="meta-pill">
+                        <span class="meta-label">Temps relatif :</span>
+                        <span class="meta-val">{{ packet.time }} s</span>
+                    </div>
+                    <div class="meta-pill">
+                        <span class="meta-label">Longueur :</span>
+                        <span class="meta-val">{{ packet.length }} octets</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-info-line">
+                <span class="info-label">Résumé Wireshark :</span>
+                <code class="info-content">{{ packet.info }}</code>
+            </div>
+        </section>
+
+        <!-- Grille principale de dissection et Hex Dump -->
+        <main class="detail-main-grid">
+            <!-- Colonne 1 : Dissection hiérarchique des couches -->
+            <div class="detail-column">
+                <h2 class="section-title">
+                    <svg viewBox="0 0 24 24" class="title-icon"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+                    Arborescence des Couches Réseau
+                </h2>
+
+                <div class="layers-accordion">
+                    {% for layer in packet.layers %}
+                    <div class="layer-card">
+                        <div class="layer-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                            <span class="layer-chevron">▼</span>
+                            <span class="layer-badge-tag">{{ layer.badge }}</span>
+                            <span class="layer-title-text">{{ layer.name }}</span>
+                        </div>
+                        <div class="layer-body">
+                            <table class="fields-table">
+                                <thead>
+                                    <tr>
+                                        <th>Champ Protocol</th>
+                                        <th>Valeur Décodée</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for field in layer.fields %}
+                                    <tr>
+                                        <td class="field-name">{{ field.name }}</td>
+                                        <td class="field-val"><code>{{ field.value }}</code></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Colonne 2 : Hex & ASCII Dump -->
+            <div class="detail-column">
+                <div class="hexdump-header-row">
+                    <h2 class="section-title">
+                        <svg viewBox="0 0 24 24" class="title-icon"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+                        Dump Hexadécimal & ASCII
+                    </h2>
+                    <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('{{ packet.raw_hex }}'); alert('Octets hexadécimaux copiés dans le presse-papier !');">
+                        Copier Raw Hex
+                    </button>
+                </div>
+
+                <div class="hexdump-viewer-card">
+                    <div class="hex-viewer-lines">
+                        {% for line in packet.hexdump %}
+                        <div class="hex-row">
+                            <span class="hex-offset">{{ line.offset }}</span>
+                            <span class="hex-bytes">
+                                {% for b in line.bytes_hex %}
+                                    <span class="hex-byte">{{ b }}</span>
+                                {% endfor %}
+                            </span>
+                            <span class="hex-ascii">{{ line.bytes_ascii }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>
